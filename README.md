@@ -10,17 +10,22 @@ retrieve, and delete notes.
 | GET | /notes | Retrieve all notes |
 | POST | /notes | Create a new note |
 | DELETE | /notes/{id} | Delete a note by ID |
+| POST | /register | Register a new user |
+| POST | /login | Login and receive JWT token |
 
 ## Tech Stack
 
 - Python
 - FastAPI
 - Uvicorn
+- SQLAlchemy + SQLite
+- JWT Authentication (python-jose)
+- Password Hashing (bcrypt)
 
 ## How to Run
 
 1. Install dependencies:
-pip install fastapi uvicorn
+pip install fastapi uvicorn sqlalchemy python-jose passlib bcrypt
 
 2. Start the server:
 python -m uvicorn main:app --reload
