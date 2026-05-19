@@ -1,24 +1,41 @@
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
+from database import SessionLocal, engine
+import models
+
+models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
-notes = []
 
-class Note(BaseModel):
-    id: int
+class NoteCreate(BaseModel):
     body: str
 
-@app.post("/notes")
-def create_note(note: Note):
-    notes.append(note)
-    return note
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 @app.get("/notes")
-def get_notes():
-    return notes
+def get_notes(db: Session = Depends(get_db)):
+    return db.query(models.Note).all()
+
+@app.post("/notes")
+def create_note(note: NoteCreate, db: Session = Depends(get_db)):
+    db_note = models.Note(body=note.body)
+    db.add(db_note)
+    db.commit()
+    db.refresh(db_note)
+    return db_note
+
 
 @app.delete("/notes/{note_id}")
-def delete_note(note_id: int):
-    global notes
-    notes = [note for note in notes if note.id != note_id]
-    return {"message": f"Note with id {note_id} deleted"}
+def delete_note(note_id: int, db: Session = Depends(get_db)):
+    db_note = db.query(models.Note).filter(models.Note.id == note_id).first()
+    if db_note is None:
+        return {"error": "Note not found"}
+    db.delete(db_note)
+    db.commit()
+    return {"message": "Note deleted successfully"}
