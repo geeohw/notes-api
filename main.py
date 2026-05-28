@@ -1,3 +1,6 @@
+import anthropic
+from dotenv import load_dotenv
+import os
 from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -5,6 +8,10 @@ from database import SessionLocal, engine
 from auth import hash_password, verify_password, create_access_token, verify_token
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 import models
+
+load_dotenv()
+
+client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -54,6 +61,28 @@ def delete_note(note_id: int, db: Session = Depends(get_db), current_user: str =
     db.delete(db_note)
     db.commit()
     return {"message": "Note deleted successfully"}
+
+@app.post("/notes/{note_id}/optimize")
+def optimize_note(note_id: int, db: Session = Depends(get_db), current_user: str = Depends(get_current_user)):
+    db_note = db.query(models.Note).filter(models.Note.id == note_id).first()
+    if db_note is None:
+        raise HTTPException(status_code=404, detail="Note not found")
+    
+    message = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=1024,
+        messages=[
+            {
+                "role": "user",
+                "content": f"I have the following tasks and notes for my day: {db_note.body}. Please analyze them and suggest an optimized daily schedule with time blocks, priorities, and reasoning for the order."
+            }
+        ]
+    )
+    
+    return {
+        "note": db_note.body,
+        "optimized_schedule": message.content[0].text # type: ignore
+    }
 
 @app.post("/register")
 def register(user: UserCreate, db: Session = Depends(get_db)):
