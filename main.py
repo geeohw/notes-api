@@ -1,5 +1,5 @@
-import anthropic
 from dotenv import load_dotenv
+from google import genai
 import os
 from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
@@ -11,7 +11,7 @@ import models
 
 load_dotenv()
 
-client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -68,20 +68,16 @@ def optimize_note(note_id: int, db: Session = Depends(get_db), current_user: str
     if db_note is None:
         raise HTTPException(status_code=404, detail="Note not found")
     
-    message = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=1024,
-        messages=[
-            {
-                "role": "user",
-                "content": f"I have the following tasks and notes for my day: {db_note.body}. Please analyze them and suggest an optimized daily schedule with time blocks, priorities, and reasoning for the order."
-            }
-        ]
-    )
+    prompt = f"I have the following tasks and notes for my day: {db_note.body}. Please analyze them and suggest an optimized daily schedule with time blocks, priorities, and reasoning for the order."
     
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt
+    )
+
     return {
         "note": db_note.body,
-        "optimized_schedule": message.content[0].text # type: ignore
+        "optimized_schedule": response.text # type: ignore
     }
 
 @app.post("/register")
